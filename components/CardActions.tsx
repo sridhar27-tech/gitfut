@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toBlob, toPng } from "html-to-image";
-import { Check, Copy, Download, Link2, MessageCircle, Share2 } from "lucide-react";
+import { Check, Copy, Download, Link2, Share2 } from "lucide-react";
 import type { Card } from "@/lib/scoring/types";
 import { cardUrl, intentUrl, nativeSharePayload } from "@/lib/share";
 import { RESULT_THEME } from "./finishTheme";
@@ -34,6 +34,7 @@ interface ExportAction {
   run: (node: HTMLElement, card: Card) => Promise<void>;
 }
 
+// Image actions only — link/social sharing lives in the visible share row.
 const EXPORTS: ExportAction[] = [
   {
     id: "download",
@@ -51,7 +52,7 @@ const EXPORTS: ExportAction[] = [
   },
   {
     id: "copy",
-    label: "Copy",
+    label: "Copy image",
     title: "Copy image to clipboard",
     done: "Copied",
     icon: Copy,
@@ -61,30 +62,23 @@ const EXPORTS: ExportAction[] = [
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
     },
   },
-  {
-    id: "link",
-    label: "Link",
-    title: "Copy link to this card",
-    done: "Copied",
-    icon: Link2,
-    run: async (_node, card) => {
-      await navigator.clipboard.writeText(cardUrl(card));
-    },
-  },
 ];
 
-// Each platform carries its own brand color, surfaced on hover so the buttons
-// feel recognizable and tappable (not three identical grey tabs).
-const PLATFORMS = [
-  { id: "x" as const, label: "X", brand: "#ffffff", Icon: XLogo },
-  { id: "linkedin" as const, label: "LinkedIn", brand: "#0a66c2", Icon: LinkedInLogo },
-  {
-    id: "whatsapp" as const,
-    label: "WhatsApp",
-    brand: "#25d366",
-    Icon: (p: { size?: number }) => <MessageCircle size={p.size ?? 16} />,
+const PLATFORM_BTN =
+  "group flex items-center justify-center gap-[7px] rounded-xl border border-line bg-white/[0.03] py-[11px] text-[12.5px] font-semibold text-ink-soft transition-all duration-200 ease-out hover:-translate-y-[1px] hover:bg-[var(--pb)]/[0.12] hover:text-white active:translate-y-0 active:scale-[.98]";
+
+// Brand-colored border + glow on hover, so each target reads as tappable and
+// recognizable rather than three identical grey tabs.
+const brandHover = (brand: string) => ({
+  onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.borderColor = `${brand}66`;
+    e.currentTarget.style.boxShadow = `0 6px 18px -8px ${brand}80`;
   },
-];
+  onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.borderColor = "";
+    e.currentTarget.style.boxShadow = "";
+  },
+});
 
 export default function CardActions({
   card,
@@ -96,6 +90,21 @@ export default function CardActions({
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  // Default true so supported browsers (mobile + modern desktop) render the CTA
+  // with no layout shift; the effect hides it where Web Share is unavailable
+  // (e.g. desktop Firefox) so it never falls back to a redundant X-share.
+  const [canNativeShare, setCanNativeShare] = useState(true);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // Default is "shown"; only hide where Web Share is missing. The set is
+    // deferred (not synchronous in the effect) so it can't cascade renders.
+    const supported = typeof navigator !== "undefined" && typeof navigator.share === "function";
+    if (supported) return;
+    const t = setTimeout(() => setCanNativeShare(false), 0);
+    return () => clearTimeout(t);
+  }, []);
 
   // Download CTA picks up the card's own tier color so the action matches the
   // card the user is saving (bronze → bronze, silver → silver, TOTY → blue …).
@@ -119,13 +128,13 @@ export default function CardActions({
     }
   };
 
-  // Native share sheet — the smoothest path on mobile (and the only route to
-  // Instagram Stories). Tries to attach the card image; falls back to X intent.
+  // Native share sheet — the best one-tap path on mobile (and the only route to
+  // Instagram Stories). Tries to attach the card image; falls back to text+url.
   const nativeShare = async () => {
     const node = targetRef.current;
     const payload = nativeSharePayload(card);
     try {
-      if (node && typeof navigator !== "undefined" && "canShare" in navigator) {
+      if (node && "canShare" in navigator) {
         const blob = await toBlob(node, RENDER_OPTS);
         if (blob) {
           const file = new File([blob], `${card.login}-gitfut.png`, { type: "image/png" });
@@ -135,72 +144,85 @@ export default function CardActions({
           }
         }
       }
-      if (typeof navigator !== "undefined" && navigator.share) {
-        await navigator.share(payload);
-        return;
-      }
-      window.open(intentUrl("x", card), "_blank", "noopener,noreferrer");
+      await navigator.share(payload);
     } catch (e) {
-      // user-cancelled share is benign — no error toast
-      if (e instanceof Error && e.name === "AbortError") return;
+      if (e instanceof Error && e.name === "AbortError") return; // user dismissed
       window.open(intentUrl("x", card), "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(cardUrl(card));
+      setLinkCopied(true);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setLinkCopied(false), 1600);
+    } catch {
+      /* clipboard unavailable — silent */
     }
   };
 
   return (
     <div className="flex w-full flex-col gap-[10px]">
-      {/* primary — native share sheet (green = the action). Focal CTA: lifts on
-          hover, presses on click, with a one-pass sheen sweep on hover. */}
-      <button
-        onClick={nativeShare}
-        className="font-display group relative flex h-[50px] w-full items-center justify-center gap-[9px] overflow-hidden rounded-xl bg-gradient-to-b from-brand to-brand-mid text-[18px] tracking-[.05em] text-[#04130a] shadow-[0_0_0_1px_rgba(57,211,83,.45),0_10px_28px_-6px_rgba(57,211,83,.5)] transition-all duration-200 ease-out hover:-translate-y-[1px] hover:shadow-[0_0_0_1px_rgba(86,224,107,.6),0_14px_34px_-6px_rgba(57,211,83,.62)] active:translate-y-0 active:scale-[.985] active:duration-75"
-      >
-        {/* sheen sweep on hover */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/35 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full"
-        />
-        <Share2 size={18} strokeWidth={2.5} className="relative" />
-        <span className="relative">SHARE MY CARD</span>
-      </button>
+      {/* primary — native share sheet (shown only where it's supported, so it
+          never degrades into a duplicate X-share). Focal green CTA. */}
+      {canNativeShare && (
+        <button
+          type="button"
+          onClick={nativeShare}
+          className="font-display group relative flex h-[50px] w-full items-center justify-center gap-[9px] overflow-hidden rounded-xl bg-gradient-to-b from-brand to-brand-mid text-[18px] tracking-[.05em] text-[#04130a] shadow-[0_0_0_1px_rgba(57,211,83,.45),0_10px_28px_-6px_rgba(57,211,83,.5)] transition-all duration-200 ease-out hover:-translate-y-[1px] hover:shadow-[0_0_0_1px_rgba(86,224,107,.6),0_14px_34px_-6px_rgba(57,211,83,.62)] active:translate-y-0 active:scale-[.985] active:duration-75"
+        >
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/35 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full"
+          />
+          <Share2 size={18} strokeWidth={2.5} className="relative" />
+          <span className="relative">SHARE MY CARD</span>
+        </button>
+      )}
 
-      {/* platform row — three distinct CTAs; each lights up in its own brand
-          color on hover (lift + tinted fill + border) so it reads as tappable */}
+      {/* visible share targets — one tap each, always shown */}
       <div className="grid w-full grid-cols-3 gap-[8px]">
-        {PLATFORMS.map((p) => {
-          const { Icon } = p;
-          return (
-            <button
-              key={p.id}
-              onClick={() => window.open(intentUrl(p.id, card), "_blank", "noopener,noreferrer")}
-              title={`Share on ${p.label}`}
-              aria-label={`Share on ${p.label}`}
-              className="group flex items-center justify-center gap-[7px] rounded-xl border border-line bg-white/[0.03] py-[11px] text-[12.5px] font-semibold text-ink-soft transition-all duration-200 ease-out hover:-translate-y-[1px] hover:bg-[var(--pb)]/[0.12] hover:text-white"
-              style={
-                {
-                  "--pb": p.brand,
-                  // brand-colored border + glow on hover via inline custom props
-                } as React.CSSProperties
-              }
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = `${p.brand}66`;
-                e.currentTarget.style.boxShadow = `0 6px 18px -8px ${p.brand}80`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "";
-                e.currentTarget.style.boxShadow = "";
-              }}
-            >
-              <Icon size={15} />
-              <span className="max-[380px]:hidden">{p.label}</span>
-            </button>
-          );
-        })}
+        <button
+          type="button"
+          onClick={() => window.open(intentUrl("x", card), "_blank", "noopener,noreferrer")}
+          title="Share on X"
+          aria-label="Share on X"
+          className={PLATFORM_BTN}
+          style={{ "--pb": "#ffffff" } as React.CSSProperties}
+          {...brandHover("#ffffff")}
+        >
+          <XLogo size={15} />
+          <span className="max-[360px]:hidden">X</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => window.open(intentUrl("linkedin", card), "_blank", "noopener,noreferrer")}
+          title="Share on LinkedIn"
+          aria-label="Share on LinkedIn"
+          className={PLATFORM_BTN}
+          style={{ "--pb": "#3b9eff" } as React.CSSProperties}
+          {...brandHover("#3b9eff")}
+        >
+          <LinkedInLogo size={15} />
+          <span className="max-[360px]:hidden">LinkedIn</span>
+        </button>
+        <button
+          type="button"
+          onClick={copyLink}
+          title="Copy link to this card"
+          aria-label="Copy link to this card"
+          className={PLATFORM_BTN}
+          style={{ "--pb": "#39d353" } as React.CSSProperties}
+          {...brandHover("#39d353")}
+        >
+          {linkCopied ? <Check size={15} className="text-brand" /> : <Link2 size={15} />}
+          <span className="max-[360px]:hidden">{linkCopied ? "Copied" : "Copy link"}</span>
+        </button>
       </div>
 
-      {/* save group — Download is the highest-intent action here (people save
-          the image to repost), so it's the hero of this row; Copy + Link are
-          clear secondary buttons beside it. */}
+      {/* image actions — Download is the highest-intent action (save to repost),
+          so it's the hero of this row; Copy image sits beside it. */}
       {(() => {
         const dl = EXPORTS.find((a) => a.id === "download")!;
         const rest = EXPORTS.filter((a) => a.id !== "download");
@@ -208,20 +230,14 @@ export default function CardActions({
         const dlBusy = busy === dl.id;
         const DlIcon = dl.icon;
         return (
-          <div className="grid w-full grid-cols-[1.6fr_1fr_1fr] gap-[8px]">
-            {/* DOWNLOAD — hero: tinted in the card's own tier color, filled,
-                lifts + glows on hover */}
+          <div className="grid w-full grid-cols-[1.6fr_1fr] gap-[8px]">
             <button
               onClick={() => runExport(dl)}
               disabled={dlBusy}
               title="Download your card as an image"
               aria-label="Download your card as an image"
               className="group relative flex items-center justify-center gap-[8px] overflow-hidden rounded-xl border py-[12px] text-[13.5px] font-bold tracking-[.02em] transition-all duration-200 ease-out hover:-translate-y-[1px] active:translate-y-0 active:scale-[.98] disabled:opacity-70"
-              style={{
-                color: tier,
-                borderColor: `${tier}66`,
-                background: `${tier}1f`,
-              }}
+              style={{ color: tier, borderColor: `${tier}66`, background: `${tier}1f` }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.borderColor = `${tier}b3`;
                 e.currentTarget.style.background = `${tier}33`;
@@ -246,7 +262,6 @@ export default function CardActions({
               {dlBusy ? "Saving…" : dlDone ? "Saved" : "Download"}
             </button>
 
-            {/* COPY + LINK — secondary buttons */}
             {rest.map((a) => {
               const isDone = done === a.id;
               const isBusy = busy === a.id;

@@ -34,9 +34,15 @@ export default function ScoutForm({
         <Mascot size={150} />
       </div>
 
-      <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-[11.5px] font-semibold tracking-wide text-brand max-[860px]:mx-auto">
-        <span className="h-[6px] w-[6px] animate-pulse rounded-full bg-brand shadow-[0_0_8px_var(--color-brand)]" />
-        GITHUB × WORLD CUP 26
+      {/* crossover "fixture" tag — the dev world (mono GITHUB) versus the
+          tournament (broadcast WORLD CUP 26), joined by the × the concept implies.
+          No status-pill or pulsing dot — the type carries it. */}
+      <div className="mb-[18px] inline-flex items-center gap-[9px] rounded-[8px] border border-white/[0.08] bg-white/[0.025] px-[12px] py-[6px] max-[860px]:mx-auto">
+        <span className="font-mono text-[10.5px] font-semibold tracking-[.18em] text-ink-soft">GITHUB</span>
+        <span className="font-display text-[15px] leading-none text-brand">×</span>
+        <span className="font-display text-[15px] leading-none tracking-[.06em] text-ink">
+          WORLD CUP <span className="text-gold-hi">26</span>
+        </span>
       </div>
 
       <h1 className="font-display m-0 mb-3 text-[clamp(52px,7vw,104px)] leading-[.82] tracking-[.005em]">
@@ -108,16 +114,22 @@ export default function ScoutForm({
         · or your own
       </div>
 
-      <div className="mt-[22px] flex flex-wrap items-center gap-x-[18px] gap-y-2 text-[12.5px] font-medium text-ink-mute max-[860px]:justify-center">
-        <span className="inline-flex items-center gap-2">
-          <span className="h-[7px] w-[7px] rounded-full bg-brand shadow-[0_0_8px_var(--color-brand)]" />
-          <strong className="font-bold text-ink-dim">12,480</strong> cards rated
-          this window
+      {/* live tally — a broadcast-style scoreboard count; the number is the
+          social proof, so it leads in the display face with tabular figures. */}
+      <div className="mt-[20px] flex flex-wrap items-center gap-x-[14px] gap-y-[10px] max-[860px]:justify-center">
+        <span className="inline-flex items-baseline gap-[9px]">
+          <span className="relative flex h-[7px] w-[7px] translate-y-[-1px] self-center" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
+            <span className="relative inline-flex h-[7px] w-[7px] rounded-full bg-brand" />
+          </span>
+          <span className="font-display text-[20px] leading-none tabular-nums text-ink">12,480</span>
+          <span className="text-[12px] text-ink-mute">cards rated this window</span>
         </span>
+        <span aria-hidden className="h-[12px] w-px bg-white/[0.12] max-[860px]:hidden" />
         <button
           type="button"
           onClick={onOpenModal}
-          className="cursor-pointer font-semibold text-ink-soft transition hover:text-brand"
+          className="cursor-pointer text-[12.5px] font-semibold text-ink-soft underline-offset-2 transition hover:text-brand hover:underline"
         >
           how it works ↗
         </button>
