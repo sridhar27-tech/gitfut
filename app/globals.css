@@ -48,6 +48,7 @@
   --animate-shimmer: shimmer 2.4s linear infinite;
   --animate-float: float 5s ease-in-out infinite;
   --animate-pop: pop 0.16s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-flag-raise: flag-raise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @layer base {
@@ -226,6 +227,24 @@
   }
   50% {
     transform: translateY(-8px);
+  }
+}
+
+/* the assistant-referee's flag swings up from their side — the offside call (404) */
+@keyframes flag-raise {
+  0% {
+    transform: rotate(-58deg);
+    opacity: 0;
+  }
+  55% {
+    opacity: 1;
+  }
+  78% {
+    transform: rotate(7deg);
+  }
+  100% {
+    transform: rotate(0deg);
+    opacity: 1;
   }
 }
 
