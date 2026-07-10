@@ -1,8 +1,8 @@
 // Rating histogram from a uniform random sample of GitHub accounts, scored
-// with this repo's own engine. The data lives in distribution-data.json;
-// regenerate it with distribution-runner.ts (repo root). This module only
+// with this repo's own engine. The data lives in data/distribution-data.json;
+// regenerate it with scripts/distribution-runner.ts. This module only
 // types and re-exports it so components keep a stable import.
-import dist from "./distribution-data.json";
+import dist from "../data/distribution-data.json";
 
 // Ratings below DIST_MIN are clamped into the first bucket.
 export const DIST_MIN: number = dist.min;

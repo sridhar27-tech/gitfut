@@ -1,4 +1,4 @@
-// Regenerates lib/distribution-data.json from scratch: samples GitHub
+// Regenerates data/distribution-data.json from scratch: samples GitHub
 // accounts uniformly at random, fetches the same GraphQL signals the server
 // fetches (mirrors lib/github/client.ts, which is server-only and needs the
 // production token pool), scores them with the repo's real signalsFromPayload
@@ -6,10 +6,10 @@
 // aggregate ever touches disk: no logins, ids, or per-user rows are stored.
 //
 // Usage:
-//   GH_TOKEN=$(gh auth token) npx tsx distribution-runner.ts
-//   GH_TOKEN=... npx tsx distribution-runner.ts --sample 500 --out /tmp/dist.json
-//   GH_TOKEN=... npx tsx distribution-runner.ts --resume
-//   GH_TOKEN=... npx tsx distribution-runner.ts --check torvalds,gaearon
+//   GH_TOKEN=$(gh auth token) npx tsx scripts/distribution-runner.ts
+//   GH_TOKEN=... npx tsx scripts/distribution-runner.ts --sample 500 --out /tmp/dist.json
+//   GH_TOKEN=... npx tsx scripts/distribution-runner.ts --resume
+//   GH_TOKEN=... npx tsx scripts/distribution-runner.ts --check torvalds,gaearon
 //
 // --sample N   attempt N randomly sampled accounts (default 20000, the size of
 //              the original run) and write the aggregate JSON. Flushed every
@@ -24,7 +24,7 @@
 //              resumed halves are possible but, at 20k draws over ~300M ids,
 //              vanishingly rare.)
 // --fresh      discard an interrupted run in the output file and start over
-// --out PATH   output path (default lib/distribution-data.json)
+// --out PATH   output path (default data/distribution-data.json)
 // --check L,L  validation mode: score the named logins and print their cards
 //              to stderr for comparison against the live site; writes nothing
 //
@@ -36,9 +36,9 @@
 // the REST (sampling) and GraphQL (scoring) rate limits, which are spent in
 // parallel.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { signalsFromPayload } from "./lib/github/signals";
-import { buildCard } from "./lib/scoring/engine";
-import type { RawPayload, RawRepo } from "./lib/github/client";
+import { signalsFromPayload } from "../lib/github/signals";
+import { buildCard } from "../lib/scoring/engine";
+import type { RawPayload, RawRepo } from "../lib/github/client";
 
 const TOKEN = process.env.GH_TOKEN!;
 // Deliberately above the current max existing user id (~299,755,500 as of
@@ -54,7 +54,7 @@ const flag = (name: string) => {
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] : undefined;
 };
-const outFile = flag("--out") ?? "lib/distribution-data.json";
+const outFile = flag("--out") ?? "data/distribution-data.json";
 // Attempts, not scored accounts: some sampled logins fail to score (deleted,
 // suspended, GraphQL-invisible), matching the original 20,000 -> n=18,107 run.
 const sampleN = flag("--sample") ? Number(flag("--sample")) : 20_000;
